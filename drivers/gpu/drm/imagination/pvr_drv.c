@@ -415,6 +415,10 @@ pvr_dev_query_runtime_info_get(struct pvr_device *pvr_dev,
 	runtime_info.max_coeffs = rogue_get_max_coeffs(pvr_dev);
 	runtime_info.cdm_max_local_mem_size_regs =
 		rogue_get_cdm_max_local_mem_size_regs(pvr_dev);
+	runtime_info.gpu_multicore_support =
+		pvr_device_has_feature(pvr_dev,
+		PVR_FEATURE_GPU_MULTICORE_SUPPORT);
+	runtime_info.core_count = pvr_dev->core_count;
 
 	err = PVR_UOBJ_SET(args->pointer, args->size, runtime_info);
 	if (err < 0)

@@ -634,6 +634,46 @@ pvr_load_gpu_id(struct pvr_device *pvr_dev)
 }
 
 /**
+ * pvr_load_core_count() - Load a PowerVR device's code count from control
+ * registers.
+ *
+ * Sets the arch field of struct pvr_dev.core_count.
+ *
+ * @pvr_dev: Target PowerVR device.
+ */
+static int
+pvr_load_core_count(struct pvr_device *pvr_dev)
+{
+	struct drm_device *drm_dev = from_pvr_device(pvr_dev);
+	u32 core_count;
+
+	/*
+	 * Non-multicore hardware has exactly one GPU core.
+	 */
+	if (!PVR_HAS_FEATURE(pvr_dev, gpu_multicore_support)) {
+		pvr_dev->core_count = 1;
+		return 0;
+	}
+
+	core_count = pvr_cr_read32(pvr_dev,
+				   ROGUE_CR_MULTICORE_SYSTEM);
+
+	if (!core_count) {
+		drm_err(drm_dev,
+			"MULTICORE_SYSTEM returned zero cores\n");
+		return -EINVAL;
+	}
+
+	pvr_dev->core_count = core_count;
+
+	drm_info(drm_dev,
+		 "PowerVR multicore: %u GPU cores\n",
+		 pvr_dev->core_count);
+
+	return 0;
+}
+
+/**
  * pvr_set_dma_info() - Set PowerVR device DMA information
  * @pvr_dev: Target PowerVR device.
  *
@@ -702,6 +742,10 @@ pvr_device_gpu_init(struct pvr_device *pvr_dev)
 		return err;
 
 	err = pvr_fw_validate_init_device_info(pvr_dev);
+	if (err)
+		return err;
+
+	err = pvr_load_core_count(pvr_dev);
 	if (err)
 		return err;
 

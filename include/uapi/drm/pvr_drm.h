@@ -188,6 +188,17 @@ struct drm_pvr_dev_query_runtime_info {
 	 * memory available to a compute kernel, in dwords.
 	 */
 	__u32 cdm_max_local_mem_size_regs;
+
+	/**
+	* @gpu_multicore_support: Non-zero if the GPU advertises the GPU_MULTICORE_SUPPORT
+	* hardware feature.
+	*/
+	__u32 gpu_multicore_support;
+
+	/**
+	* @core_count: Number of physical GPU cores. Always 1 on non-multicore hardware.
+	*/
+	__u32 core_count;
 };
 
 /**

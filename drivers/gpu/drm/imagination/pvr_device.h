@@ -85,6 +85,10 @@ struct pvr_device {
 	/** @gpu_id: GPU ID detected at runtime. */
 	struct pvr_gpu_id gpu_id;
 
+	/** @core_count: Number of physical GPU cores. */
+	u32 core_count;
+
+
 	/**
 	 * @features: Hardware feature information.
 	 *
