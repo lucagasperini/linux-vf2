@@ -1157,6 +1157,10 @@
 				 <&syscrg JH7110_SYSCLK_GPU_RTC_TOGGLE>;
 			clock-names = "core", "sys", "mem",
 				      "core_clk", "apb", "rtc";
+
+			assigned-clocks = <&syscrg JH7110_SYSCLK_GPU_CORE>;
+			assigned-clock-rates = <594000000>;
+			
 			resets = <&syscrg JH7110_SYSRST_GPU_APB>,
 				 <&syscrg JH7110_SYSRST_GPU_DOMA>;
 			reset-names = "apb", "doma";
