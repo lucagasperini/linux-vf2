@@ -27,9 +27,6 @@ struct inno_hdmi_plat_ops {
 	void (*disable)(struct device *pdev);
 	enum drm_mode_status (*mode_valid)(struct device *pdev,
 					   const struct drm_display_mode *mode);
-	void (*disable)(struct device *pdev);
-	enum drm_mode_status (*mode_valid)(struct device *pdev,
-					   const struct drm_display_mode *mode);
 };
 
 struct inno_hdmi_phy_config {
