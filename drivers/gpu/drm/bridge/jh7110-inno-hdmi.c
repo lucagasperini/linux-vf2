@@ -369,6 +369,7 @@ static const struct inno_hdmi_plat_ops stf_inno_hdmi_plat_ops = {
 
 static const struct inno_hdmi_plat_data stf_inno_hdmi_plat_data = {
 	.ops = &stf_inno_hdmi_plat_ops,
+	.reg_clk_source_tmds = true,
 };
 
 static const struct of_device_id starfive_hdmi_controller_dt_ids[] = {

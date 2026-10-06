@@ -36,7 +36,7 @@ additionalProperties: false
 
 examples:
   # Shown as a child of the HDMI subsystem node; see
-  # Documentation/devicetree/bindings/mfd/starfive,jh7110-hdmi-subsystem.yaml
+  # Documentation/devicetree/bindings/soc/starfive/starfive,jh7110-hdmi-subsystem.yaml
   # for the full node.
   - |
     phy {

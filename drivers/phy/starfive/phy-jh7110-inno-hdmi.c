@@ -156,6 +156,7 @@ static const struct inno_hdmi_phy_pre_pll_config pre_pll_cfg_table[] = {
 	{ 175500000, 175500000, 1, 175, 2, 1, 1, 3, 0, 3, 4, 0, 0x7FFFFF },
 	{ 185590000, 185590000, 1, 185, 2, 1, 1, 3, 0, 3, 4, 0, 0x970A3C },
 	{ 187000000, 187000000, 1, 187, 2, 1, 1, 3, 0, 3, 4, 0, 0 },
+	{ 201000000, 201000000, 1, 134, 1, 1, 1, 1, 2, 2, 2, 0, 0 },
 	{ 235690000, 235690000, 1, 235, 2, 1, 1, 3, 0, 3, 4, 0, 0xB0A3D6 },
 	{ 241500000, 241500000, 1, 161, 1, 1, 1, 4, 0, 2, 2, 0, 0 },
 	{ 241700000, 241700000, 1, 241, 2, 1, 1, 3, 0, 3, 4, 0, 0xB33332 },
@@ -519,11 +520,13 @@ static int starfive_hdmi_phy_probe(struct platform_device *pdev)
 		goto err_disable_refoclk;
 	}
 
-	ret = clk_set_rate(inno->phyclk, 297000000);
-	if (ret) {
-		dev_err(dev, "Failed to set default rate: %d\n", ret);
-		goto err_del_clk_provider;
-	}
+	/*
+	 * Do not program a default rate here. The PHY registers live in the
+	 * window gated by the controller's system clock, which this driver
+	 * cannot hold without creating a probe cycle with voutcrg, and
+	 * .set_rate writes to them. Leave the hardware alone until the
+	 * controller drives it from its .enable hook.
+	 */
 
 	/* Create and register the PHY provider */
 	inno->phy = devm_phy_create(inno->dev, NULL, &starfive_hdmi_phy_ops);
