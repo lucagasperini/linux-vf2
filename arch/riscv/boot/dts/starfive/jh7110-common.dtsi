@@ -95,6 +95,29 @@
 		};
 	};
 
+	sound1: snd-card1 {
+		compatible = "simple-audio-card";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		simple-audio-card,name = "Starfive-HDMI-Sound-Card";
+		simple-audio-card,dai-link@0 {
+			reg = <0>;
+			format = "i2s";
+			bitclock-master = <&sndi2s0>;
+			frame-master = <&sndi2s0>;
+			mclk-fs = <256>;
+
+			sndi2s0: cpu {
+				sound-dai = <&i2stx0>;
+			};
+
+			codec {
+				sound-dai = <&hdmi_controller>;
+			};
+		};
+	};
+
 	hdmi-connector {
 		compatible = "hdmi-connector";
 		type = "a";
@@ -160,6 +183,8 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&hdmi_pins>;
 
+	#sound-dai-cells = <0>;
+
 	ports {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -180,6 +205,12 @@
 			};
 		};
 	};
+};
+
+&i2stx0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mclk_ext_pins>;
+	status = "okay";
 };
 
 &i2srx_bclk_ext {
@@ -716,6 +747,16 @@
 			input-enable;
 			input-schmitt-enable;
 			slew-rate = <0>;
+		};
+	};
+
+	mclk_ext_pins: mclk-ext-0 {
+		mclk-ext-pins {
+			pinmux = <GPIOMUX(4,
+					 GPOUT_LOW,
+					 GPOEN_DISABLE,
+					 GPI_SYS_MCLK_EXT)>;
+			input-enable;
 		};
 	};
 };

@@ -19,6 +19,10 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 
+#include <sound/soc.h>
+#include <sound/soc-dai.h>
+#include <sound/pcm.h>
+
 #include <drm/bridge/inno_hdmi.h>
 #include <drm/drm_modes.h>
 
@@ -35,14 +39,99 @@
 #define VOUT_SYSCFG_8			0x8
 #define VOUT_HDMI_PANEL_SEL		BIT(4)
 
+#define SF_PCM_RATE_32000_192000  (SNDRV_PCM_RATE_32000 | \
+				   SNDRV_PCM_RATE_44100 | \
+				   SNDRV_PCM_RATE_48000 | \
+				   SNDRV_PCM_RATE_88200 | \
+				   SNDRV_PCM_RATE_96000 | \
+				   SNDRV_PCM_RATE_176400 | \
+				   SNDRV_PCM_RATE_192000)
+
 enum stf_hdmi_ctrl_clocks { CLK_SYS = 0, CLK_M, CLK_B, CLK_PCLK, CLK_CTRL_NUM };
 
 struct stf_inno_hdmi_controller {
+	/** @dev: kernel generic device model */
 	struct device *dev;
+	/** @clks: array of clock controller reference */
 	struct clk_bulk_data clks[CLK_CTRL_NUM];
+	/** @tx_rst: physical reset line controller */
 	struct reset_control *tx_rst;
+	/** @phy: handle for PHY framework */
 	struct phy *phy;
+	/** @inno: generic library reference */
+	struct inno_hdmi *inno;
+	/** @enabled: is hdmi controller enabled? */
 	bool enabled;
+};
+
+static int starfive_hdmi_audio_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	struct stf_inno_hdmi_controller *ctrl = snd_soc_dai_get_drvdata(dai);
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		inno_hdmi_audio_unmute(ctrl->inno);
+		return 0;
+
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		inno_hdmi_audio_mute(ctrl->inno);
+		return 0;
+
+	default:
+		return -EINVAL;
+	}
+}
+
+static int starfive_hdmi_audio_hw_params(struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params,
+			     struct snd_soc_dai *dai)
+{
+	struct stf_inno_hdmi_controller *ctrl = snd_soc_dai_get_drvdata(dai);
+	struct inno_hdmi_audio_params p = {
+		.sample_rate = params_rate(params),
+		.channels = params_channels(params),
+	};
+
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		return 0;
+
+
+	return inno_hdmi_audio_config(ctrl->inno, &p);
+}
+
+static const struct snd_soc_dai_ops starfive_hdmi_audio_dai_ops = {
+	.trigger = starfive_hdmi_audio_trigger,
+	.hw_params = starfive_hdmi_audio_hw_params,
+};
+
+static int starfive_hdmi_audio_probe(struct snd_soc_component *component)
+{
+	/* In this time, HDMI has suspend and cannot read and write register. */
+	return 0;
+}
+
+static const struct snd_soc_component_driver starfive_hdmi_audio_component = {
+	.name = "starfive-hdmi-audio",
+	.probe = starfive_hdmi_audio_probe,
+};
+
+static struct snd_soc_dai_driver starfive_hdmi_audio_dai = {
+	.name = "starfive-hdmi-audio",
+	.id = 0,
+	.playback = {
+		.stream_name = "Playback",
+		.channels_min = 2,
+		.channels_max = 8,
+		.rates = SF_PCM_RATE_32000_192000,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE |
+			   SNDRV_PCM_FMTBIT_S32_LE,
+	},
+	.ops = &starfive_hdmi_audio_dai_ops,
+	.symmetric_rate = 1,
 };
 
 static enum drm_mode_status
@@ -199,7 +288,6 @@ static int starfive_inno_hdmi_controller_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct stf_inno_hdmi_controller *ctrl;
 	const struct inno_hdmi_plat_data *plat_data;
-	struct inno_hdmi *inno;
 	int ret;
 
 	ctrl = devm_kzalloc(dev, sizeof(*ctrl), GFP_KERNEL);
@@ -259,10 +347,17 @@ static int starfive_inno_hdmi_controller_probe(struct platform_device *pdev)
 	plat_data = of_device_get_match_data(dev);
 
 	/* Hand off to the generic library to create the bridge. */
-	inno = inno_hdmi_probe(pdev, plat_data);
-	if (IS_ERR(inno))
-		return PTR_ERR(inno);
+	ctrl->inno = inno_hdmi_probe(pdev, plat_data);
+	if (IS_ERR(ctrl->inno))
+		return PTR_ERR(ctrl->inno);
 
+	/** audio subsystem register */
+	ret = devm_snd_soc_register_component(dev,
+					&starfive_hdmi_audio_component,
+				    &starfive_hdmi_audio_dai,
+				    1);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to register HDMI audio\n");
 	return 0;
 }
 

@@ -15,6 +15,11 @@ struct drm_encoder;
 struct inno_hdmi;
 struct platform_device;
 
+struct inno_hdmi_audio_params {
+	u32 sample_rate;
+	u32 channels;
+};
+
 struct inno_hdmi_plat_ops {
 	void (*enable)(struct device *pdev, struct drm_display_mode *mode);
 	void (*disable)(struct device *pdev);
@@ -40,4 +45,9 @@ struct inno_hdmi *inno_hdmi_bind(struct device *pdev,
 
 struct inno_hdmi *inno_hdmi_probe(struct platform_device *pdev,
 				  const struct inno_hdmi_plat_data *plat_data);
+
+void inno_hdmi_audio_mute(struct inno_hdmi *hdmi);
+void inno_hdmi_audio_unmute(struct inno_hdmi *hdmi);
+int inno_hdmi_audio_config(struct inno_hdmi *hdmi,
+			     struct inno_hdmi_audio_params *params);
 #endif /* __INNO_HDMI__ */

@@ -403,6 +403,8 @@ struct inno_hdmi {
 	struct inno_hdmi_i2c *i2c;
 	struct i2c_adapter *ddc;
 	const struct inno_hdmi_plat_data *plat_data;
+	/** @tmds: Transition-Minimized Differential Signaling */
+	unsigned long long tmds;
 };
 
 enum {
@@ -505,6 +507,8 @@ static inline void hdmi_modb(struct inno_hdmi *hdmi, u16 offset,
 static void inno_hdmi_i2c_init(struct inno_hdmi *hdmi, unsigned long long rate)
 {
 	unsigned long long ddc_bus_freq = rate >> 2;
+
+	hdmi->tmds = rate;
 
 	do_div(ddc_bus_freq, HDMI_SCL_RATE);
 
@@ -1211,6 +1215,120 @@ struct inno_hdmi *inno_hdmi_bind(struct device *dev,
 	return hdmi;
 }
 EXPORT_SYMBOL_GPL(inno_hdmi_bind);
+
+void inno_hdmi_audio_mute(struct inno_hdmi *hdmi)
+{
+	hdmi_modb(hdmi, HDMI_AV_MUTE, m_AUDIO_MUTE, v_AUDIO_MUTE(1));
+}
+
+void inno_hdmi_audio_unmute(struct inno_hdmi *hdmi)
+{
+
+	hdmi_modb(hdmi, HDMI_AV_MUTE, m_AUDIO_MUTE, v_AUDIO_MUTE(0));
+}
+
+int inno_hdmi_audio_config(struct inno_hdmi *hdmi,
+			     struct inno_hdmi_audio_params *params)
+{
+	unsigned int rate_reg;
+	unsigned int channels_reg;
+	unsigned int n_value;
+	unsigned int cts_value;
+	
+
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: tmds rate:%d\n", hdmi->tmds);
+
+
+	switch (params->sample_rate) {
+	case 32000:
+		rate_reg = AUDIO_32K;
+		break;
+	case 44100:
+		rate_reg = AUDIO_441K;
+		break;
+	case 48000:
+		rate_reg = AUDIO_48K;
+		break;
+	case 88200:
+		rate_reg = AUDIO_882K;
+		break;
+	case 96000:
+		rate_reg = AUDIO_96K;
+		break;
+	case 176400:
+		rate_reg = AUDIO_1764K;
+		break;
+	case 192000:
+		rate_reg = AUDIO_192K;
+		break;
+	default:
+		dev_err(hdmi->dev, "HDMI&AUDIO: not support sample rate:%d\n",
+			params->sample_rate);
+		return -EINVAL;
+	}
+
+	n_value = 128 * params->sample_rate / 1000;
+	cts_value = hdmi->tmds / 1000;
+
+	switch (params->channels) {
+	case 2:
+		channels_reg = v_I2S_CHANNEL(I2S_CHANNEL_1_2);
+		break;
+	case 4:
+		channels_reg = v_I2S_CHANNEL(I2S_CHANNEL_1_2) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_3_4);
+		break;
+	case 6:
+		channels_reg = v_I2S_CHANNEL(I2S_CHANNEL_1_2) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_3_4) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_5_6);
+		break;
+	case 8:
+		channels_reg = v_I2S_CHANNEL(I2S_CHANNEL_1_2) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_3_4) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_5_6) | 
+					v_I2S_CHANNEL(I2S_CHANNEL_7_8);
+		break;
+	default:
+		dev_err(hdmi->dev, "HDMI&AUDIO: not support channels:%d\n",
+			params->channels);
+		return -EINVAL;
+	}
+
+	hdmi_modb(hdmi, HDMI_AUDIO_CTRL1, v_CTS_SOURCE(CTS_SOURCE_EXTERNAL), v_CTS_SOURCE(CTS_SOURCE_EXTERNAL));
+
+	hdmi_writeb(hdmi, AUDIO_SAMPLE_RATE, rate_reg);
+
+	hdmi_modb(hdmi, AUDIO_I2S_MODE, GENMASK(5,2), channels_reg);
+
+	hdmi_writeb(hdmi, AUDIO_N_H, ((n_value >> 16) & 0xf));
+	hdmi_writeb(hdmi, AUDIO_N_M, ((n_value >> 8) & 0xff));
+	hdmi_writeb(hdmi, AUDIO_N_L, ((n_value >> 0) & 0xff));
+
+	hdmi_writeb(hdmi, HDMI_AUDIO_CTS_H, ((cts_value >> 16) & 0xf));
+	hdmi_writeb(hdmi, HDMI_AUDIO_CTS_M, ((cts_value >> 8) & 0xff));
+	hdmi_writeb(hdmi, HDMI_AUDIO_CTS_L, ((cts_value >> 0) & 0xff));
+
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: AUDIO_CFG :0x%x\n",
+			hdmi_readb(hdmi, HDMI_AUDIO_CTRL1));
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: CHANNEL_INPUT :0x%x\n",
+			hdmi_readb(hdmi, AUDIO_I2S_MAP));
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: SAMPLE_FRE :0x%x\n",
+			hdmi_readb(hdmi, AUDIO_SAMPLE_RATE));
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: PINS_ENA :0x%x\n",
+			hdmi_readb(hdmi, AUDIO_I2S_MODE));
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: N_VALUE :0x%x, 0x%x, 0x%x\n",
+			hdmi_readb(hdmi, AUDIO_N_H),
+			hdmi_readb(hdmi, AUDIO_N_M),
+			hdmi_readb(hdmi, AUDIO_N_L));
+	dev_dbg(hdmi->dev, "HDMI&AUDIO: CTS_VALUE :0x%x,0x%x,0x%x\n",
+			hdmi_readb(hdmi, HDMI_AUDIO_CTS_H),
+			hdmi_readb(hdmi, HDMI_AUDIO_CTS_M),
+			hdmi_readb(hdmi, HDMI_AUDIO_CTS_L));
+
+	return 0;
+}
+
 MODULE_AUTHOR("Andy Yan <andyshrk@163.com>");
 MODULE_DESCRIPTION("INNOSILICON HDMI transmitter library");
 MODULE_LICENSE("GPL");
