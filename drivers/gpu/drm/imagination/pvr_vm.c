@@ -1249,6 +1249,58 @@ pvr_find_heap_containing(struct pvr_device *pvr_dev, u64 start, u64 size)
 }
 
 /**
+ * pvr_vm_find_gem_object_at_addr() - Look up a buffer object from a given
+ *                                    device-virtual address.
+ * @vm_ctx: [IN] Target VM context.
+ * @device_addr: [IN] Virtual device address at the start of the required
+ *               object.
+ * @bo_offset_out: [OUT] Pointer to location to write offset of the 
+ *                 @device_addr within the buffer object. May be
+ *                 %NULL if this information is not required.
+ * @remaining_size_out: [OUT] Pointer to location to write size of 
+ *                      remaining space on the mapped region.  
+ *                      May be %NULL if this information is not required.
+ *
+ * If successful, a reference will be taken on the buffer object. The caller
+ * must drop the reference with pvr_gem_object_put().
+ *
+ * Return:
+ *  * The PowerVR buffer object mapped at @device_addr if one exists, or
+ *  * %NULL otherwise.
+ */
+struct pvr_gem_object *
+pvr_vm_find_gem_object_at_addr(struct pvr_vm_context *vm_ctx,
+                               u64 device_addr,
+                               u64 *bo_offset_out,
+                               u64 *remaining_size_out)
+{
+    struct pvr_gem_object *pvr_obj;
+    struct drm_gpuva *va;
+    u64 delta;
+
+    mutex_lock(&vm_ctx->lock);
+
+    va = drm_gpuva_find_first(&vm_ctx->gpuvm_mgr,
+                              device_addr, 1);
+    if (!va) {
+        mutex_unlock(&vm_ctx->lock);
+        return NULL;
+    }
+
+    delta = device_addr - va->va.addr;
+
+    pvr_obj = gem_to_pvr_gem(va->gem.obj);
+    pvr_gem_object_get(pvr_obj);
+
+    *bo_offset_out = va->gem.offset + delta;
+    *remaining_size_out = va->va.range - delta;
+
+    mutex_unlock(&vm_ctx->lock);
+
+    return pvr_obj;
+}
+
+/**
  * pvr_vm_find_gem_object() - Look up a buffer object from a given
  *                            device-virtual address.
  * @vm_ctx: [IN] Target VM context.

@@ -53,7 +53,11 @@ int pvr_heap_info_get(const struct pvr_device *pvr_dev,
 		      struct drm_pvr_ioctl_dev_query_args *args);
 const struct drm_pvr_heap *pvr_find_heap_containing(struct pvr_device *pvr_dev,
 						    u64 addr, u64 size);
-
+struct pvr_gem_object *
+pvr_vm_find_gem_object_at_addr(struct pvr_vm_context *vm_ctx,
+                               u64 device_addr,
+                               u64 *bo_offset_out,
+                               u64 *remaining_size_out);
 struct pvr_gem_object *pvr_vm_find_gem_object(struct pvr_vm_context *vm_ctx,
 					      u64 device_addr,
 					      u64 *mapped_offset_out,

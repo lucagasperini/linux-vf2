@@ -103,6 +103,9 @@ struct pvr_free_list {
 
 	/** @free_list_gpu_addr: Address of free list in GPU address space. */
 	u64 free_list_gpu_addr;
+
+	/** @bo_offset: Start of the free list within its backing GEM BO. */
+	u64 bo_offset;
 };
 
 struct pvr_free_list *

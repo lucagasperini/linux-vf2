@@ -54,6 +54,8 @@ free_list_create_kernel_structure(struct pvr_file *pvr_file,
 	struct pvr_gem_object *free_list_obj;
 	struct pvr_vm_context *vm_ctx;
 	u64 free_list_size;
+	u64 free_list_offset;
+	u64 required_size;
 	int err;
 
 	if (args->grow_threshold > 100 ||
@@ -73,16 +75,18 @@ free_list_create_kernel_structure(struct pvr_file *pvr_file,
 	if (!vm_ctx)
 		return -EINVAL;
 
-	free_list_obj = pvr_vm_find_gem_object(vm_ctx, args->free_list_gpu_addr,
-					       NULL, &free_list_size);
+	free_list_obj = pvr_vm_find_gem_object_at_addr(vm_ctx, args->free_list_gpu_addr,
+					       &free_list_offset, &free_list_size);
 	if (!free_list_obj) {
 		err = -EINVAL;
 		goto err_put_vm_context;
 	}
 
+	required_size = args->max_num_pages * FREE_LIST_ENTRY_SIZE;
+
 	if ((free_list_obj->flags & DRM_PVR_BO_ALLOW_CPU_USERSPACE_ACCESS) ||
 	    !(free_list_obj->flags & DRM_PVR_BO_PM_FW_PROTECT) ||
-	    free_list_size < (args->max_num_pages * FREE_LIST_ENTRY_SIZE)) {
+	    free_list_size < required_size) {
 		err = -EINVAL;
 		goto err_put_free_list_obj;
 	}
@@ -95,6 +99,7 @@ free_list_create_kernel_structure(struct pvr_file *pvr_file,
 	free_list->obj = free_list_obj;
 	free_list->free_list_gpu_addr = args->free_list_gpu_addr;
 	free_list->initial_num_pages = args->initial_num_pages;
+	free_list->bo_offset = free_list_offset;
 
 	pvr_vm_context_put(vm_ctx);
 
@@ -224,14 +229,16 @@ pvr_free_list_insert_pages_locked(struct pvr_free_list *free_list,
 				  struct sg_table *sgt, u32 offset, u32 num_pages)
 {
 	struct sg_dma_page_iter dma_iter;
+	void *bo_base;
 	u32 *page_list;
 
 	lockdep_assert_held(&free_list->lock);
 
-	page_list = pvr_gem_object_vmap(free_list->obj);
+	bo_base = pvr_gem_object_vmap(free_list->obj);
 	if (IS_ERR(page_list))
 		return PTR_ERR(page_list);
 
+	page_list = (u32 *)((u8 *)bo_base + free_list->bo_offset);
 	offset /= FREE_LIST_ENTRY_SIZE;
 	/* clang-format off */
 	for_each_sgtable_dma_page(sgt, &dma_iter, 0) {
